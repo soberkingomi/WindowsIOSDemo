@@ -1,0 +1,83 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and Archive
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        # 使用最新的稳定版 Xcode，如果需要特定版本，可以使用 'xcode-select'
+        run: sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
+
+      - name: Setup Signing (Placeholder)
+        # 这里是签名配置的占位符。
+        # 如果你有开发者账号，需要在这里配置证书和描述文件。
+        # 目前使用无需签名的构建方式进行演示，或者允许签名失败。
+        run: |
+          echo "Skipping signing setup for demo purposes."
+          # 实际项目中，你会在这里使用 secrets 解码证书和 profile
+          # echo "${{ secrets.BUILD_CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
+          # echo "${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
+
+      - name: Build Archive
+        # 构建 Archive。注意：没有签名的情况下，导出 IPA 可能会受限。
+        # CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO 允许无签名构建（仅用于测试，无法安装到真机）
+        run: |
+          xcodebuild -scheme WindowsIOSDemo \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath $PWD/build/WindowsIOSDemo.xcarchive \
+            clean archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Export IPA
+        # 导出 IPA。需要一个 exportOptions.plist 文件。
+        # 这里我们动态生成一个简单的 exportOptions.plist
+        run: |
+          cat <<EOF > exportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>ad-hoc</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>teamID</key>
+              <string></string>
+              <key>compileBitcode</key>
+              <false/>
+          </dict>
+          </plist>
+          EOF
+          
+          # 尝试导出 IPA。注意：如果签名完全缺失，这一步可能会报错。
+          # 为了演示流程，我们尝试执行，如果失败则输出警告但不中断流程（或者你可以选择中断）。
+          xcodebuild -exportArchive \
+            -archivePath $PWD/build/WindowsIOSDemo.xcarchive \
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath $PWD/build \
+            || echo "IPA export failed (likely due to missing signing), but Archive is available."
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: WindowsIOSDemo-Build
+          path: |
+            build/*.ipa
+            build/*.xcarchive
