@@ -44,9 +44,11 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=YES
 
       - name: Export IPA
-        # 导出 IPA。需要一个 exportOptions.plist 文件。
-        # 这里我们动态生成一个简单的 exportOptions.plist
+        # 尝试导出 IPA。
+        # 如果没有配置签名（Team ID 为空），xcodebuild -exportArchive 会失败。
+        # 因此我们添加一个 fallback：如果导出失败，则手动打包 Payload 生成 unsigned ipa。
         run: |
+          # 1. 尝试使用 xcodebuild 导出（适用于已配置签名的情况）
           cat <<EOF > exportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -66,13 +68,22 @@ jobs:
           </plist>
           EOF
           
-          # 尝试导出 IPA。注意：如果签名完全缺失，这一步可能会报错。
-          # 为了演示流程，我们尝试执行，如果失败则输出警告但不中断流程（或者你可以选择中断）。
-          xcodebuild -exportArchive \
+          echo "Attempting standard export..."
+          if xcodebuild -exportArchive \
             -archivePath $PWD/build/WindowsIOSDemo.xcarchive \
             -exportOptionsPlist exportOptions.plist \
-            -exportPath $PWD/build \
-            || echo "IPA export failed (likely due to missing signing), but Archive is available."
+            -exportPath $PWD/build; then
+              echo "Standard export successful."
+          else
+              echo "Standard export failed (expected if no signing). Falling back to manual zip..."
+              # 2. 手动打包（适用于无签名/演示情况）
+              # IPA 实际上就是一个包含 Payload 文件夹的 zip
+              mkdir -p Payload
+              cp -r $PWD/build/WindowsIOSDemo.xcarchive/Products/Applications/WindowsIOSDemo.app Payload/
+              zip -r build/WindowsIOSDemo.ipa Payload
+              rm -rf Payload
+              echo "Manual unsigned IPA created at build/WindowsIOSDemo.ipa"
+          fi
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

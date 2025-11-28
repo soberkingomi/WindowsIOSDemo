@@ -47,21 +47,23 @@
    - 在页面底部的 **Artifacts** 区域，下载 `WindowsIOSDemo-Build`。
    - 解压后你会看到 `.xcarchive` 和 `.ipa` 文件（如果签名配置正确）。
 
-## 关于签名 (Signing)
+## 关于签名与安装 (无证书模式)
 
-默认配置下，本项目使用 **无签名 (Unsigned)** 或 **Ad-Hoc 无证书** 方式构建。这意味着：
-- 生成的 `.ipa` 可能无法直接安装到未越狱的 iPhone 上。
-- 这主要用于验证代码是否能编译通过。
+你提到**没有开发者证书**，这完全没问题。本项目已经配置为支持**无签名构建**。
 
-**如果你需要安装到真机，请配置 GitHub Secrets：**
+### 构建结果
+GitHub Actions 会生成一个 **未签名 (Unsigned) 的 IPA 文件**。
 
-1. 准备 Apple 开发者账号的证书 (`.p12`) 和描述文件 (`.mobileprovision`)。
-2. 在 GitHub 仓库 -> Settings -> Secrets and variables -> Actions 中添加：
-   - `BUILD_CERTIFICATE_BASE64`: Base64 编码的 .p12 文件内容。
-   - `P12_PASSWORD`: .p12 文件的密码。
-   - `BUILD_PROVISION_PROFILE_BASE64`: Base64 编码的 .mobileprovision 文件内容。
-   - `KEYCHAIN_PASSWORD`: 任意字符串，用于临时解锁 CI 环境的 keychain。
-3. 修改 `.github/workflows/ios-build.yml` 中 "Setup Signing" 步骤的注释代码以启用签名。
+### 这个 IPA 能做什么？
+1.  **验证构建**：证明你的代码没有语法错误，可以成功编译打包。
+2.  **越狱设备安装**：可以直接安装在越狱的 iPhone 上。
+3.  **自签名安装 (高级)**：
+    - 如果你身边有 Mac，可以使用 iOS App Signer 重签名。
+    - 如果只有 Windows，可以使用 **AltStore** 或 **Sideloadly** 等工具，使用你的个人 Apple ID (免费版) 将这个 IPA 安装到你的手机上进行测试。
+
+### 注意事项
+- 由于没有签名，直接通过 iTunes 或 AirDrop 安装到未越狱手机**会失败**。
+- 这是 Windows 开发 iOS 的常见限制，最终的上架包 (Release) 仍然需要合法的 Apple 开发者证书。
 
 ## 如何扩展
 
